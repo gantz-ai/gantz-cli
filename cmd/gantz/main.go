@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	"moul.io/banner"
 
 	"github.com/gantz-ai/gantz-cli/internal/config"
 	"github.com/gantz-ai/gantz-cli/internal/mcp"
@@ -15,6 +17,15 @@ var (
 	version  = "0.1.0"
 	cfgFile  string
 	relayURL string
+)
+
+var (
+	cyan    = color.New(color.FgHiCyan).SprintFunc()
+	green   = color.New(color.FgHiGreen).SprintFunc()
+	yellow  = color.New(color.FgHiYellow).SprintFunc()
+	blue    = color.New(color.FgHiBlue).SprintFunc()
+	magenta = color.New(color.FgHiMagenta).SprintFunc()
+	dim     = color.New(color.Faint).SprintFunc()
 )
 
 func main() {
@@ -58,21 +69,28 @@ func init() {
 	rootCmd.AddCommand(versionCmd)
 }
 
+func printBanner() {
+	color.HiCyan(banner.Inline("gantz"))
+	fmt.Println()
+}
+
 func runServe(cmd *cobra.Command, args []string) error {
+	printBanner()
+
 	// Load config
 	cfg, err := config.Load(cfgFile)
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
 
-	fmt.Printf("Gantz CLI v%s\n", version)
-	fmt.Printf("Loaded %d tools from %s\n", len(cfg.Tools), cfgFile)
+	fmt.Printf("%s %s\n", dim("version"), cyan("v"+version))
+	fmt.Printf("%s %s %s %s\n", dim("loaded"), green(fmt.Sprintf("%d", len(cfg.Tools))), dim("tools from"), cfgFile)
 
 	// Create MCP server
 	mcpServer := mcp.NewServer(cfg)
 
 	// Connect to relay
-	fmt.Println("\nConnecting to relay server...")
+	fmt.Printf("\n%s\n", yellow("Connecting to relay server..."))
 
 	tunnelClient := tunnel.NewClient(relayURL, mcpServer)
 	tunnelURL, err := tunnelClient.Connect()
@@ -80,16 +98,19 @@ func runServe(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("connect tunnel: %w", err)
 	}
 
-	fmt.Printf("\n  MCP Server URL: %s\n", tunnelURL)
-	fmt.Printf("\n  Add to Claude Desktop config:\n")
-	fmt.Printf("  {\n")
-	fmt.Printf("    \"mcpServers\": {\n")
-	fmt.Printf("      \"%s\": {\n", cfg.Name)
-	fmt.Printf("        \"url\": \"%s\"\n", tunnelURL)
-	fmt.Printf("      }\n")
-	fmt.Printf("    }\n")
-	fmt.Printf("  }\n\n")
-	fmt.Println("Press Ctrl+C to stop")
+	fmt.Println()
+	fmt.Printf("  %s %s\n", dim("MCP Server URL:"), green(tunnelURL))
+	fmt.Println()
+	fmt.Printf("  %s\n", dim("Add to Claude Desktop config:"))
+	fmt.Printf("  %s\n", dim("{"))
+	fmt.Printf("    %s %s\n", blue("\"mcpServers\":"), dim("{"))
+	fmt.Printf("      %s %s\n", magenta(fmt.Sprintf("\"%s\":", cfg.Name)), dim("{"))
+	fmt.Printf("        %s %s\n", blue("\"url\":"), green(fmt.Sprintf("\"%s\"", tunnelURL)))
+	fmt.Printf("      %s\n", dim("}"))
+	fmt.Printf("    %s\n", dim("}"))
+	fmt.Printf("  %s\n", dim("}"))
+	fmt.Println()
+	fmt.Printf("%s\n\n", dim("Press Ctrl+C to stop"))
 
 	return tunnelClient.Wait()
 }
