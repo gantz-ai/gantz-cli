@@ -96,7 +96,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: gantz-ai/homebrew-tap
-          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          token: ${{ secrets.CR_PAT }}
           path: homebrew-tap
 
       - name: Update formula
