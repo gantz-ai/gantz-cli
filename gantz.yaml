@@ -1,0 +1,93 @@
+# Gantz CLI Configuration
+# Run with: gantz serve
+
+name: my-tools
+description: My local MCP tools
+version: "1.0.0"
+
+server:
+  port: 3000
+
+tools:
+  # Simple echo tool
+  - name: echo
+    description: Echo back a message
+    parameters:
+      - name: message
+        type: string
+        description: The message to echo
+        required: true
+    script:
+      shell: echo "{{message}}"
+
+  # Get current time
+  - name: get_time
+    description: Get the current date and time
+    parameters: []
+    script:
+      shell: date
+
+  # Calculator
+  - name: calculate
+    description: Evaluate a mathematical expression
+    parameters:
+      - name: expression
+        type: string
+        description: The math expression to evaluate (e.g., "2 + 2")
+        required: true
+    script:
+      shell: echo "{{expression}}" | bc -l
+
+  # List files
+  - name: list_files
+    description: List files in a directory
+    parameters:
+      - name: path
+        type: string
+        description: Directory path to list
+        required: false
+        default: "."
+    script:
+      shell: ls -la "{{path}}"
+
+  # Read file
+  - name: read_file
+    description: Read contents of a file
+    parameters:
+      - name: path
+        type: string
+        description: Path to the file
+        required: true
+    script:
+      shell: cat "{{path}}"
+      timeout: 5s
+
+  # Run custom command
+  - name: run_command
+    description: Run a shell command
+    parameters:
+      - name: command
+        type: string
+        description: The command to run
+        required: true
+    script:
+      shell: "{{command}}"
+      timeout: 30s
+
+  # Example with executable
+  # - name: python_script
+  #   description: Run a Python script
+  #   parameters:
+  #     - name: input
+  #       type: string
+  #       description: Input for the script
+  #       required: true
+  #   script:
+  #     command: python3
+  #     args:
+  #       - "./scripts/my_script.py"
+  #       - "{{input}}"
+  #     working_dir: "${HOME}/projects"
+  #     timeout: 60s
+  #   environment:
+  #     PYTHONPATH: "${HOME}/projects/lib"
