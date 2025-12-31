@@ -1,0 +1,208 @@
+# Gantz CLI Configuration
+# Run with: gantz serve
+
+name: my-tools
+description: My local MCP tools
+version: "1.0.0"
+
+server:
+  port: 3000
+
+tools:
+  # Simple echo tool
+  - name: echo
+    description: Echo back a message
+    parameters:
+      - name: message
+        type: string
+        description: The message to echo
+        required: true
+    script:
+      shell: echo "{{message}}"
+
+  # Get current time
+  - name: get_time
+    description: Get the current date and time
+    parameters: []
+    script:
+      shell: date
+
+  # Calculator
+  - name: calculate
+    description: Evaluate a mathematical expression
+    parameters:
+      - name: expression
+        type: string
+        description: The math expression to evaluate (e.g., "2 + 2")
+        required: true
+    script:
+      shell: echo "{{expression}}" | bc -l
+
+  # List files
+  - name: list_files
+    description: List files in a directory
+    parameters:
+      - name: path
+        type: string
+        description: Directory path to list
+        required: false
+        default: "."
+    script:
+      shell: ls -la "{{path}}"
+
+  # Read file
+  - name: read_file
+    description: Read contents of a file
+    parameters:
+      - name: path
+        type: string
+        description: Path to the file
+        required: true
+    script:
+      shell: cat "{{path}}"
+      timeout: 5s
+
+  # Run custom command
+  - name: run_command
+    description: Run a shell command
+    parameters:
+      - name: command
+        type: string
+        description: The command to run
+        required: true
+    script:
+      shell: "{{command}}"
+      timeout: 30s
+
+  # Example with executable
+  # - name: python_script
+  #   description: Run a Python script
+  #   parameters:
+  #     - name: input
+  #       type: string
+  #       description: Input for the script
+  #       required: true
+  #   script:
+  #     command: python3
+  #     args:
+  #       - "./scripts/my_script.py"
+  #       - "{{input}}"
+  #     working_dir: "${HOME}/projects"
+  #     timeout: 60s
+  #   environment:
+  #     PYTHONPATH: "${HOME}/projects/lib"
+
+  # ===== HTTP Tools (Gantz Mock Server) =====
+  # These tools call the Gantz Mock Server API at mockserver.gantz.ai
+
+  # List all products (public, no auth required)
+  - name: list_products
+    description: Get all products from the store
+    parameters: []
+    http:
+      method: GET
+      url: "https://mockserver.gantz.ai/products"
+      timeout: 10s
+      extract_json: "data"
+
+  # Get product by ID (public)
+  - name: get_product
+    description: Get a specific product by ID
+    parameters:
+      - name: product_id
+        type: string
+        description: Product ID (1-5)
+        required: true
+    http:
+      method: GET
+      url: "https://mockserver.gantz.ai/products/{{product_id}}"
+      timeout: 10s
+      extract_json: "data"
+
+  # Get inventory (requires API key)
+  - name: get_inventory
+    description: Get all inventory items (requires API key)
+    parameters: []
+    http:
+      method: GET
+      url: "https://mockserver.gantz.ai/inventory"
+      headers:
+        X-API-Key: "demo-api-key-123"
+      timeout: 10s
+      extract_json: "data"
+
+  # Get orders (requires Bearer token)
+  # First get token from /auth/token with API key, then use it here
+  - name: get_orders
+    description: Get all orders (requires Bearer token)
+    parameters:
+      - name: token
+        type: string
+        description: Bearer token from /auth/token
+        required: true
+    http:
+      method: GET
+      url: "https://mockserver.gantz.ai/orders"
+      headers:
+        Authorization: "Bearer {{token}}"
+      timeout: 10s
+      extract_json: "data"
+
+  # Get auth token (exchange API key for Bearer token)
+  - name: get_auth_token
+    description: Get a Bearer token using API key
+    parameters: []
+    http:
+      method: POST
+      url: "https://mockserver.gantz.ai/auth/token"
+      headers:
+        Content-Type: "application/json"
+      body: '{"api_key": "demo-api-key-123"}'
+      timeout: 10s
+      extract_json: "access_token"
+
+  # Get admin stats (requires Basic auth)
+  - name: get_admin_stats
+    description: Get admin statistics (requires Basic auth)
+    parameters: []
+    http:
+      method: GET
+      url: "https://mockserver.gantz.ai/admin/stats"
+      headers:
+        Authorization: "Basic YWRtaW46cGFzc3dvcmQxMjM="  # admin:password123
+      timeout: 10s
+      extract_json: "data"
+
+  # Create order (requires Bearer token)
+  - name: create_order
+    description: Create a new order
+    parameters:
+      - name: token
+        type: string
+        description: Bearer token
+        required: true
+      - name: product_id
+        type: string
+        description: Product ID to order
+        required: true
+      - name: quantity
+        type: integer
+        description: Quantity to order
+        required: true
+    http:
+      method: POST
+      url: "https://mockserver.gantz.ai/orders"
+      headers:
+        Authorization: "Bearer {{token}}"
+        Content-Type: "application/json"
+      body: '{"product_id": "{{product_id}}", "quantity": {{quantity}}}'
+      timeout: 10s
+
+  # Health check
+  - name: health_check
+    description: Check if the mock server is running
+    parameters: []
+    http:
+      method: GET
+      url: "https://mockserver.gantz.ai/health"
+      timeout: 5s
