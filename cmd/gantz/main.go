@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/cobra"
 	"moul.io/banner"
 
@@ -110,6 +112,9 @@ func runServer(cmd *cobra.Command, args []string) error {
 	// Create MCP server
 	mcpServer := mcp.NewServer(cfg)
 
+	// Start config file watcher
+	go watchConfig(cfgFile, mcpServer)
+
 	// Connect to relay
 	fmt.Printf("\n%s\n", yellow("Connecting to relay server..."))
 
@@ -131,9 +136,75 @@ func runServer(cmd *cobra.Command, args []string) error {
 	fmt.Printf("    %s\n", dim("}"))
 	fmt.Printf("  %s\n", dim("}"))
 	fmt.Println()
-	fmt.Printf("%s\n\n", dim("Press Ctrl+C to stop"))
+	fmt.Printf("%s\n\n", dim("Press Ctrl+C to stop | Config hot-reload enabled"))
 
 	return tunnelClient.Wait()
+}
+
+// watchConfig watches the config file for changes and reloads it
+func watchConfig(cfgPath string, mcpServer *mcp.Server) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		fmt.Printf("%s Failed to create file watcher: %v\n", yellow("!"), err)
+		return
+	}
+	defer watcher.Close()
+
+	// Get absolute path for the config file
+	absPath, err := filepath.Abs(cfgPath)
+	if err != nil {
+		fmt.Printf("%s Failed to get absolute path: %v\n", yellow("!"), err)
+		return
+	}
+
+	// Watch the directory containing the config file (to catch editor save patterns)
+	dir := filepath.Dir(absPath)
+	if err := watcher.Add(dir); err != nil {
+		fmt.Printf("%s Failed to watch config directory: %v\n", yellow("!"), err)
+		return
+	}
+
+	// Debounce timer to avoid multiple reloads
+	var debounceTimer *time.Timer
+	debounceDelay := 100 * time.Millisecond
+
+	for {
+		select {
+		case event, ok := <-watcher.Events:
+			if !ok {
+				return
+			}
+			// Only react to writes on our config file
+			if filepath.Base(event.Name) == filepath.Base(absPath) {
+				if event.Op&(fsnotify.Write|fsnotify.Create) != 0 {
+					// Debounce: reset timer on each event
+					if debounceTimer != nil {
+						debounceTimer.Stop()
+					}
+					debounceTimer = time.AfterFunc(debounceDelay, func() {
+						reloadConfig(cfgPath, mcpServer)
+					})
+				}
+			}
+		case err, ok := <-watcher.Errors:
+			if !ok {
+				return
+			}
+			fmt.Printf("%s File watcher error: %v\n", yellow("!"), err)
+		}
+	}
+}
+
+// reloadConfig reloads the config file and updates the MCP server
+func reloadConfig(cfgPath string, mcpServer *mcp.Server) {
+	newCfg, err := config.Load(cfgPath)
+	if err != nil {
+		fmt.Printf("\n%s Config reload failed: %v\n", color.RedString("✗"), err)
+		return
+	}
+
+	mcpServer.UpdateConfig(newCfg)
+	fmt.Printf("\n%s Config reloaded: %s tools\n", green("↻"), green(fmt.Sprintf("%d", len(newCfg.Tools))))
 }
 
 // runInit creates a sample gantz.yaml file

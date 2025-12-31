@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 
 	"github.com/gantz-ai/gantz-cli/internal/config"
 	"github.com/gantz-ai/gantz-cli/internal/executor"
@@ -16,6 +17,7 @@ type Server struct {
 	config       *config.Config
 	executor     *executor.Executor
 	httpExecutor *executor.HTTPExecutor
+	mu           sync.RWMutex
 }
 
 // NewServer creates a new MCP server
@@ -25,6 +27,20 @@ func NewServer(cfg *config.Config) *Server {
 		executor:     executor.NewExecutor(),
 		httpExecutor: executor.NewHTTPExecutor(),
 	}
+}
+
+// UpdateConfig updates the server configuration (for hot-reload)
+func (s *Server) UpdateConfig(cfg *config.Config) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.config = cfg
+}
+
+// GetConfig returns the current config (thread-safe)
+func (s *Server) GetConfig() *config.Config {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.config
 }
 
 // HandleRequest processes an MCP request (implements tunnel.MCPHandler)
@@ -51,14 +67,15 @@ func (s *Server) HandleRequest(req *tunnel.MCPRequest) (*tunnel.MCPResponse, err
 }
 
 func (s *Server) handleInitialize(req *tunnel.MCPRequest) (*tunnel.MCPResponse, error) {
+	cfg := s.GetConfig()
 	return &tunnel.MCPResponse{
 		JSONRPC: "2.0",
 		ID:      req.ID,
 		Result: map[string]interface{}{
 			"protocolVersion": "2024-11-05",
 			"serverInfo": map[string]interface{}{
-				"name":    s.config.Name,
-				"version": s.config.Version,
+				"name":    cfg.Name,
+				"version": cfg.Version,
 			},
 			"capabilities": map[string]interface{}{
 				"tools": map[string]interface{}{},
@@ -68,9 +85,10 @@ func (s *Server) handleInitialize(req *tunnel.MCPRequest) (*tunnel.MCPResponse, 
 }
 
 func (s *Server) handleToolsList(req *tunnel.MCPRequest) (*tunnel.MCPResponse, error) {
-	tools := make([]map[string]interface{}, 0, len(s.config.Tools))
+	cfg := s.GetConfig()
+	tools := make([]map[string]interface{}, 0, len(cfg.Tools))
 
-	for _, tool := range s.config.Tools {
+	for _, tool := range cfg.Tools {
 		// Build JSON Schema for parameters
 		properties := make(map[string]interface{})
 		required := []string{}
@@ -133,7 +151,8 @@ func (s *Server) handleToolsCall(req *tunnel.MCPRequest) (*tunnel.MCPResponse, e
 	}
 
 	// Find tool
-	tool := s.config.GetTool(params.Name)
+	cfg := s.GetConfig()
+	tool := cfg.GetTool(params.Name)
 	if tool == nil {
 		return &tunnel.MCPResponse{
 			JSONRPC: "2.0",
