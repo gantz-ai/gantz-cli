@@ -63,7 +63,10 @@ type ScriptConfig struct {
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("read file: %w", err)
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("config file '%s' not found\n\n  Run 'gantz init' to create a sample config file", path)
+		}
+		return nil, fmt.Errorf("cannot read '%s': %w", path, err)
 	}
 
 	// Expand environment variables
@@ -71,7 +74,7 @@ func Load(path string) (*Config, error) {
 
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("parse yaml: %w", err)
+		return nil, fmt.Errorf("invalid YAML in '%s': %w\n\n  Check for syntax errors like incorrect indentation or missing colons", path, err)
 	}
 
 	// Set defaults
@@ -86,14 +89,38 @@ func Load(path string) (*Config, error) {
 	}
 
 	// Validate tools
+	if len(cfg.Tools) == 0 {
+		return nil, fmt.Errorf("no tools defined in '%s'\n\n  Add at least one tool with either 'script' or 'http' configuration", path)
+	}
+
 	for i, tool := range cfg.Tools {
 		if tool.Name == "" {
-			return nil, fmt.Errorf("tool %d: name is required", i)
+			return nil, fmt.Errorf("tool #%d is missing a name\n\n  Every tool needs a 'name' field", i+1)
 		}
 		hasScript := tool.Script.Command != "" || tool.Script.Shell != ""
 		hasHTTP := tool.HTTP.URL != ""
 		if !hasScript && !hasHTTP {
-			return nil, fmt.Errorf("tool %s: script or http configuration is required", tool.Name)
+			return nil, fmt.Errorf("tool '%s' has no action defined\n\n  Add either:\n  - script.shell: \"your command\"\n  - script.command: \"/path/to/script\"\n  - http.url: \"https://api.example.com\"", tool.Name)
+		}
+		if hasScript && hasHTTP {
+			return nil, fmt.Errorf("tool '%s' has both script and http defined\n\n  Use only one: either 'script' or 'http'", tool.Name)
+		}
+
+		// Validate HTTP config
+		if hasHTTP {
+			if tool.HTTP.Method == "" {
+				cfg.Tools[i].HTTP.Method = "GET" // Default to GET
+			}
+		}
+
+		// Validate parameters
+		for j, param := range tool.Parameters {
+			if param.Name == "" {
+				return nil, fmt.Errorf("tool '%s' parameter #%d is missing a name", tool.Name, j+1)
+			}
+			if param.Type == "" {
+				cfg.Tools[i].Parameters[j].Type = "string" // Default to string
+			}
 		}
 	}
 
