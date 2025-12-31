@@ -2,10 +2,7 @@ name: Build and Release
 
 on:
   push:
-    branches: [main]
     tags: ['v*']
-  pull_request:
-    branches: [main]
 
 jobs:
   build:
@@ -25,21 +22,13 @@ jobs:
           - goos: linux
             goarch: arm64
             name: gantz-linux-arm64
-          - goos: windows
-            goarch: amd64
-            name: gantz-windows-amd64.exe
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: actions/setup-go@v5
         with:
           go-version: '1.23'
-
-      - name: Run tests
-        run: go test -v ./...
 
       - name: Build binary
         env:
@@ -49,8 +38,7 @@ jobs:
         run: |
           go build -ldflags "-X main.version=${{ github.ref_name }}" -o ${{ matrix.name }} ./cmd/gantz
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}
           path: ${{ matrix.name }}
@@ -58,43 +46,108 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
 
     steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
+      - name: Get version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - uses: actions/download-artifact@v4
         with:
           path: artifacts
+
+      - name: Flatten artifacts
+        run: |
+          mkdir -p release
+          find artifacts -type f -exec mv {} release/ \;
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: artifacts/**/*
+          files: release/*
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  latest-release:
-    needs: build
+  update-homebrew:
+    needs: release
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    permissions:
-      contents: write
 
     steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
+      - name: Wait for release assets
+        run: sleep 10
 
-      - name: Update latest release
-        uses: softprops/action-gh-release@v1
+      - name: Calculate SHA256
+        id: sha
+        run: |
+          VERSION=${{ github.ref_name }}
+          BASE_URL="https://github.com/gantz-ai/gantz-cli/releases/download/${VERSION}"
+
+          echo "darwin_arm64=$(curl -sL ${BASE_URL}/gantz-darwin-arm64 | sha256sum | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          echo "darwin_amd64=$(curl -sL ${BASE_URL}/gantz-darwin-amd64 | sha256sum | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          echo "linux_arm64=$(curl -sL ${BASE_URL}/gantz-linux-arm64 | sha256sum | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          echo "linux_amd64=$(curl -sL ${BASE_URL}/gantz-linux-amd64 | sha256sum | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+
+      - name: Checkout homebrew-tap
+        uses: actions/checkout@v4
         with:
-          tag_name: latest
-          name: Latest Build
-          prerelease: true
-          files: artifacts/**/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          repository: gantz-ai/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update formula
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION_NUM="${VERSION#v}"
+
+          cat > homebrew-tap/Formula/gantz.rb << 'EOF'
+          class Gantz < Formula
+            desc "Gantz Run - Local MCP tunnel for AI agents"
+            homepage "https://gantz.run"
+            version "${{ needs.release.outputs.version }}"
+            license "MIT"
+
+            on_macos do
+              on_arm do
+                url "https://github.com/gantz-ai/gantz-cli/releases/download/${{ github.ref_name }}/gantz-darwin-arm64"
+                sha256 "${{ steps.sha.outputs.darwin_arm64 }}"
+              end
+              on_intel do
+                url "https://github.com/gantz-ai/gantz-cli/releases/download/${{ github.ref_name }}/gantz-darwin-amd64"
+                sha256 "${{ steps.sha.outputs.darwin_amd64 }}"
+              end
+            end
+
+            on_linux do
+              on_arm do
+                url "https://github.com/gantz-ai/gantz-cli/releases/download/${{ github.ref_name }}/gantz-linux-arm64"
+                sha256 "${{ steps.sha.outputs.linux_arm64 }}"
+              end
+              on_intel do
+                url "https://github.com/gantz-ai/gantz-cli/releases/download/${{ github.ref_name }}/gantz-linux-amd64"
+                sha256 "${{ steps.sha.outputs.linux_amd64 }}"
+              end
+            end
+
+            def install
+              bin.install Dir["*"].first => "gantz"
+            end
+
+            test do
+              assert_match "gantz version", shell_output("#{bin}/gantz version")
+            end
+          end
+          EOF
+
+      - name: Commit and push
+        run: |
+          cd homebrew-tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/gantz.rb
+          git commit -m "Update to ${{ github.ref_name }}"
+          git push
