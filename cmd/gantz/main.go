@@ -131,7 +131,7 @@ func runServer(cmd *cobra.Command, args []string) error {
 	// Connect to relay
 	fmt.Printf("\n%s\n", yellow("Connecting to relay server..."))
 
-	tunnelClient := tunnel.NewClient(relayURL, mcpServer)
+	tunnelClient := tunnel.NewClient(relayURL, mcpServer, version)
 	tunnelURL, err := tunnelClient.Connect()
 	if err != nil {
 		return fmt.Errorf("connect tunnel: %w", err)

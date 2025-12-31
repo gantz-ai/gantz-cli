@@ -46,14 +46,16 @@ type Client struct {
 	tunnelURL string
 	done      chan struct{}
 	mu        sync.Mutex
+	version   string
 }
 
 // NewClient creates a new tunnel client
-func NewClient(relayURL string, handler MCPHandler) *Client {
+func NewClient(relayURL string, handler MCPHandler, version string) *Client {
 	return &Client{
 		relayURL: relayURL,
 		handler:  handler,
 		done:     make(chan struct{}),
+		version:  version,
 	}
 }
 
@@ -70,10 +72,15 @@ type TunnelMessage struct {
 // Connect establishes a tunnel connection and returns the public URL
 func (c *Client) Connect() (string, error) {
 	header := http.Header{}
-	header.Set("User-Agent", "gantz-cli/0.1.0")
+	header.Set("User-Agent", "gantz-cli/"+c.version)
+	header.Set("X-Gantz-Version", c.version)
 
-	conn, _, err := websocket.DefaultDialer.Dial(c.relayURL+"/tunnel", header)
+	conn, resp, err := websocket.DefaultDialer.Dial(c.relayURL+"/tunnel", header)
 	if err != nil {
+		// Check if it's a version rejection (HTTP 426 Upgrade Required)
+		if resp != nil && resp.StatusCode == http.StatusUpgradeRequired {
+			return "", fmt.Errorf("version outdated - run: gantz update")
+		}
 		return "", fmt.Errorf("dial relay: %w", err)
 	}
 
