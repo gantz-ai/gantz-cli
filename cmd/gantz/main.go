@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/fatih/color"
@@ -81,6 +83,13 @@ var validateCmd = &cobra.Command{
 	RunE:  runValidate,
 }
 
+var updateCmd = &cobra.Command{
+	Use:   "update",
+	Short: "Update gantz to the latest version",
+	Long:  `Download and install the latest version of gantz.`,
+	RunE:  runUpdate,
+}
+
 func init() {
 	runCmd.Flags().StringVarP(&cfgFile, "config", "c", "gantz.yaml", "config file path")
 	runCmd.Flags().StringVar(&relayURL, "relay", "wss://relay.gantz.run", "relay server URL")
@@ -90,6 +99,7 @@ func init() {
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(validateCmd)
+	rootCmd.AddCommand(updateCmd)
 }
 
 func printBanner() {
@@ -106,8 +116,11 @@ func runServer(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("load config: %w", err)
 	}
 
-	fmt.Printf("%s %s\n", dim("version"), cyan("v"+version))
+	fmt.Printf("%s %s\n", dim("version"), cyan(version))
 	fmt.Printf("%s %s %s %s\n", dim("loaded"), green(fmt.Sprintf("%d", len(cfg.Tools))), dim("tools from"), cfgFile)
+
+	// Check for updates in background
+	go checkForUpdates()
 
 	// Create MCP server
 	mcpServer := mcp.NewServer(cfg)
@@ -342,9 +355,72 @@ func checkForUpdates() {
 		latestVersion = latestVersion[1:]
 	}
 
-	if latestVersion != "" && latestVersion != version {
-		fmt.Println()
-		fmt.Printf("%s New version available: %s → %s\n", yellow("!"), dim("v"+version), green("v"+latestVersion))
-		fmt.Printf("  Update: %s\n", cyan("curl -fsSL https://gantz.run/install.sh | sh"))
+	// Strip "v" prefix from current version for comparison
+	currentVersion := version
+	if currentVersion != "" && currentVersion[0] == 'v' {
+		currentVersion = currentVersion[1:]
 	}
+
+	if latestVersion != "" && latestVersion != currentVersion {
+		fmt.Println()
+		fmt.Printf("%s New version available: %s → %s\n", yellow("!"), dim("v"+currentVersion), green("v"+latestVersion))
+		fmt.Printf("  Update: %s\n", cyan("gantz update"))
+	}
+}
+
+// runUpdate downloads and installs the latest version
+func runUpdate(cmd *cobra.Command, args []string) error {
+	fmt.Printf("Checking for updates...\n")
+
+	// Get latest version
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get("https://api.github.com/repos/gantz-ai/gantz-cli/releases/latest")
+	if err != nil {
+		return fmt.Errorf("failed to check for updates: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("failed to check for updates: HTTP %d", resp.StatusCode)
+	}
+
+	var release struct {
+		TagName string `json:"tag_name"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		return fmt.Errorf("failed to parse release info: %w", err)
+	}
+
+	latestVersion := release.TagName
+	if latestVersion != "" && latestVersion[0] == 'v' {
+		latestVersion = latestVersion[1:]
+	}
+
+	currentVersion := version
+	if currentVersion != "" && currentVersion[0] == 'v' {
+		currentVersion = currentVersion[1:]
+	}
+
+	if latestVersion == currentVersion {
+		fmt.Printf("%s Already on latest version: %s\n", green("✓"), cyan("v"+currentVersion))
+		return nil
+	}
+
+	fmt.Printf("Updating %s → %s\n\n", dim("v"+currentVersion), green("v"+latestVersion))
+
+	// Run install script
+	if runtime.GOOS == "windows" {
+		return fmt.Errorf("automatic update not supported on Windows\n\nDownload manually from: https://github.com/gantz-ai/gantz-cli/releases")
+	}
+
+	installCmd := exec.Command("sh", "-c", "curl -fsSL https://gantz.run/install.sh | sh")
+	installCmd.Stdout = os.Stdout
+	installCmd.Stderr = os.Stderr
+
+	if err := installCmd.Run(); err != nil {
+		return fmt.Errorf("update failed: %w", err)
+	}
+
+	fmt.Printf("\n%s Updated to %s\n", green("✓"), green("v"+latestVersion))
+	return nil
 }
