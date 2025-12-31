@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	version  = "0.1.1"
+	version  = "0.1.2"
 	cfgFile  string
 	relayURL string
 )
@@ -37,20 +37,20 @@ func main() {
 
 var rootCmd = &cobra.Command{
 	Use:   "gantz",
-	Short: "Gantz CLI - Local MCP server with cloud tunneling",
-	Long: `Gantz CLI allows you to run local scripts and HTTP APIs as MCP tools
+	Short: "Gantz Run - Local MCP tunnel for AI agents",
+	Long: `Gantz Run allows you to run local scripts and HTTP APIs as MCP tools
 and expose them via a secure tunnel URL for AI agents to connect.
 
 Example:
-  gantz serve              # Start server with gantz.yaml
-  gantz serve -c my.yaml   # Start with custom config`,
+  gantz run              # Start server with gantz.yaml
+  gantz run -c my.yaml   # Start with custom config`,
 }
 
-var serveCmd = &cobra.Command{
-	Use:   "serve",
-	Short: "Start the MCP server",
-	Long:  `Start a local MCP server and optionally expose it via tunnel.`,
-	RunE:  runServe,
+var runCmd = &cobra.Command{
+	Use:   "run",
+	Short: "Start the MCP server and tunnel",
+	Long:  `Start a local MCP server and expose it via tunnel to AI agents.`,
+	RunE:  runServer,
 }
 
 var versionCmd = &cobra.Command{
@@ -62,19 +62,19 @@ var versionCmd = &cobra.Command{
 }
 
 func init() {
-	serveCmd.Flags().StringVarP(&cfgFile, "config", "c", "gantz.yaml", "config file path")
-	serveCmd.Flags().StringVar(&relayURL, "relay", "wss://relay.gantz.run", "relay server URL")
+	runCmd.Flags().StringVarP(&cfgFile, "config", "c", "gantz.yaml", "config file path")
+	runCmd.Flags().StringVar(&relayURL, "relay", "wss://relay.gantz.run", "relay server URL")
 
-	rootCmd.AddCommand(serveCmd)
+	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(versionCmd)
 }
 
 func printBanner() {
-	color.HiCyan(banner.Inline("gantz"))
+	color.HiCyan(banner.Inline("gantz run"))
 	fmt.Println()
 }
 
-func runServe(cmd *cobra.Command, args []string) error {
+func runServer(cmd *cobra.Command, args []string) error {
 	printBanner()
 
 	// Load config

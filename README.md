@@ -1,10 +1,10 @@
-# Gantz CLI
+# Gantz Run
 
 A command-line tool that turns your local scripts into MCP (Model Context Protocol) servers, allowing AI agents like Claude to execute them securely via cloud tunneling.
 
 ## Overview
 
-Gantz CLI lets you define custom tools in a simple YAML file and expose them to AI agents. When you run `gantz serve`, it:
+Gantz Run lets you define custom tools in a simple YAML file and expose them to AI agents. When you run `gantz run`, it:
 
 1. Creates a local MCP server from your `gantz.yaml` configuration
 2. Connects to the [Gantz Relay](https://github.com/gantz-ai/gantz-relay) server via WebSocket
@@ -12,7 +12,7 @@ Gantz CLI lets you define custom tools in a simple YAML file and expose them to 
 
 ```
 ┌─────────────┐         ┌──────────────┐         ┌─────────────┐
-│  AI Agent   │  HTTPS  │ Gantz Relay  │   WSS   │  Gantz CLI  │
+│  AI Agent   │  HTTPS  │ Gantz Relay  │   WSS   │  Gantz Run  │
 │  (Claude)   │────────►│              │◄───────►│  (you)      │
 └─────────────┘         └──────────────┘         └─────────────┘
                                                        │
@@ -99,12 +99,12 @@ tools:
 ### 2. Start the Server
 
 ```bash
-gantz serve
+gantz run
 ```
 
 Output:
 ```
-Gantz CLI v0.1.0
+Gantz Run v0.1.0
 Loaded 2 tools from gantz.yaml
 
 Connecting to relay server...
@@ -241,12 +241,12 @@ Note: Config values support `${ENV_VAR}` expansion.
 
 ## CLI Reference
 
-### `gantz serve`
+### `gantz run`
 
 Start the MCP server.
 
 ```bash
-gantz serve [flags]
+gantz run [flags]
 ```
 
 **Flags:**
@@ -258,10 +258,10 @@ gantz serve [flags]
 **Examples:**
 ```bash
 # Start with default config
-gantz serve
+gantz run
 
 # Use custom config file
-gantz serve -c my-tools.yaml
+gantz run -c my-tools.yaml
 ```
 
 ### `gantz version`
@@ -389,7 +389,7 @@ gantz-cli/
 
 ### MCP Protocol
 
-Gantz CLI implements the [Model Context Protocol](https://spec.modelcontextprotocol.io/) with the following methods:
+Gantz Run implements the [Model Context Protocol](https://spec.modelcontextprotocol.io/) with the following methods:
 
 | Method | Description |
 |--------|-------------|
@@ -413,7 +413,7 @@ make clean        # Clean build artifacts
 
 ### Testing Your Server
 
-After starting `gantz serve`, test with curl using your tunnel URL:
+After starting `gantz run`, test with curl using your tunnel URL:
 
 ```bash
 # List tools
