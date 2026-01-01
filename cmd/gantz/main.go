@@ -112,6 +112,13 @@ var updateCmd = &cobra.Command{
 	RunE:  runUpdate,
 }
 
+var uninstallCmd = &cobra.Command{
+	Use:   "uninstall",
+	Short: "Uninstall gantz from your system",
+	Long:  `Remove the gantz binary from your system.`,
+	RunE:  runUninstall,
+}
+
 func init() {
 	runCmd.Flags().StringVarP(&cfgFile, "config", "c", "gantz.yaml", "config file path")
 	runCmd.Flags().StringVar(&relayURL, "relay", "wss://relay.gantz.run", "relay server URL")
@@ -122,6 +129,7 @@ func init() {
 	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(validateCmd)
 	rootCmd.AddCommand(updateCmd)
+	rootCmd.AddCommand(uninstallCmd)
 }
 
 func printBanner() {
@@ -461,5 +469,42 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("\n%s Updated to %s\n", green("✓"), green("v"+latestVersion))
+	return nil
+}
+
+// runUninstall removes gantz from the system
+func runUninstall(cmd *cobra.Command, args []string) error {
+	if runtime.GOOS == "windows" {
+		return fmt.Errorf("automatic uninstall not supported on Windows\n\nManually delete the gantz.exe file")
+	}
+
+	// Find where gantz is installed
+	gantzPath, err := exec.LookPath("gantz")
+	if err != nil {
+		return fmt.Errorf("gantz not found in PATH")
+	}
+
+	fmt.Printf("Found gantz at: %s\n", cyan(gantzPath))
+	fmt.Printf("Removing...\n")
+
+	// Try to remove directly first
+	if err := os.Remove(gantzPath); err != nil {
+		// If permission denied, try with sudo
+		if os.IsPermission(err) {
+			fmt.Printf("Permission denied, trying with sudo...\n")
+			sudoCmd := exec.Command("sudo", "rm", gantzPath)
+			sudoCmd.Stdout = os.Stdout
+			sudoCmd.Stderr = os.Stderr
+			sudoCmd.Stdin = os.Stdin
+			if err := sudoCmd.Run(); err != nil {
+				return fmt.Errorf("failed to remove gantz: %w", err)
+			}
+		} else {
+			return fmt.Errorf("failed to remove gantz: %w", err)
+		}
+	}
+
+	fmt.Printf("\n%s Gantz has been uninstalled\n", green("✓"))
+	fmt.Printf("\nTo reinstall: %s\n", cyan("curl -fsSL https://gantz.run/install.sh | sh"))
 	return nil
 }
