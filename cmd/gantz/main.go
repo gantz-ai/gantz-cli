@@ -103,7 +103,8 @@ func init() {
 }
 
 func printBanner() {
-	color.HiCyan(banner.Inline("gantz run"))
+	fmt.Println()
+	color.HiCyan(banner.Inline("gantz"))
 	fmt.Println()
 }
 
@@ -116,9 +117,6 @@ func runServer(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("load config: %w", err)
 	}
 
-	fmt.Printf("%s %s\n", dim("version"), cyan(version))
-	fmt.Printf("%s %s %s %s\n", dim("loaded"), green(fmt.Sprintf("%d", len(cfg.Tools))), dim("tools from"), cfgFile)
-
 	// Check for updates in background
 	go checkForUpdates()
 
@@ -129,7 +127,7 @@ func runServer(cmd *cobra.Command, args []string) error {
 	go watchConfig(cfgFile, mcpServer)
 
 	// Connect to relay
-	fmt.Printf("\n%s\n", yellow("Connecting to relay server..."))
+	fmt.Printf("  %s %s\n", dim("●"), yellow("Connecting to relay..."))
 
 	tunnelClient := tunnel.NewClient(relayURL, mcpServer, version)
 	tunnelURL, err := tunnelClient.Connect()
@@ -137,10 +135,29 @@ func runServer(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("connect tunnel: %w", err)
 	}
 
+	// Clear connecting line and print success
+	fmt.Printf("\r  %s %s                    \n", green("●"), green("Connected"))
 	fmt.Println()
-	fmt.Printf("  %s %s\n", dim("MCP Server URL:"), green(tunnelURL))
+
+	// Print server URL prominently
+	fmt.Printf("  %s\n", dim("Server URL"))
+	fmt.Printf("  %s\n", green(tunnelURL))
 	fmt.Println()
-	fmt.Printf("%s\n\n", dim("Press Ctrl+C to stop | Config hot-reload enabled"))
+
+	// Print loaded tools
+	fmt.Printf("  %s %s\n", dim("Tools"), dim("("+filepath.Base(cfgFile)+")"))
+	for _, tool := range cfg.Tools {
+		toolType := dim("script")
+		if tool.IsHTTP() {
+			toolType = magenta("http")
+		}
+		fmt.Printf("  %s %-20s %s\n", dim("•"), tool.Name, toolType)
+	}
+	fmt.Println()
+
+	// Footer
+	fmt.Printf("  %s  %s\n", dim("v"+version), dim("Hot-reload enabled"))
+	fmt.Printf("  %s\n\n", dim("Ctrl+C to stop"))
 
 	return tunnelClient.Wait()
 }
@@ -203,12 +220,12 @@ func watchConfig(cfgPath string, mcpServer *mcp.Server) {
 func reloadConfig(cfgPath string, mcpServer *mcp.Server) {
 	newCfg, err := config.Load(cfgPath)
 	if err != nil {
-		fmt.Printf("\n%s Config reload failed: %v\n", color.RedString("✗"), err)
+		fmt.Printf("\n  %s %s %v\n", color.RedString("●"), color.RedString("Reload failed:"), err)
 		return
 	}
 
 	mcpServer.UpdateConfig(newCfg)
-	fmt.Printf("\n%s Config reloaded: %s tools\n", green("↻"), green(fmt.Sprintf("%d", len(newCfg.Tools))))
+	fmt.Printf("\n  %s %s %s tools\n", green("●"), green("Reloaded"), green(fmt.Sprintf("%d", len(newCfg.Tools))))
 }
 
 // runInit creates a sample gantz.yaml file
@@ -354,8 +371,8 @@ func checkForUpdates() {
 
 	if latestVersion != "" && latestVersion != currentVersion {
 		fmt.Println()
-		fmt.Printf("%s New version available: %s → %s\n", yellow("!"), dim("v"+currentVersion), green("v"+latestVersion))
-		fmt.Printf("  Update: %s\n", cyan("gantz update"))
+		fmt.Printf("  %s %s %s → %s\n", yellow("●"), yellow("Update available"), dim("v"+currentVersion), green("v"+latestVersion))
+		fmt.Printf("    %s\n", dim("Run: gantz update"))
 	}
 }
 
