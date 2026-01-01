@@ -38,25 +38,36 @@ type MCPError struct {
 	Data    interface{} `json:"data,omitempty"`
 }
 
+// ClientConnectedCallback is called when a new client connects to the tunnel
+type ClientConnectedCallback func(clientIP string)
+
 // Client manages the WebSocket tunnel connection
 type Client struct {
-	relayURL  string
-	handler   MCPHandler
-	conn      *websocket.Conn
-	tunnelURL string
-	done      chan struct{}
-	mu        sync.Mutex
-	version   string
+	relayURL          string
+	handler           MCPHandler
+	conn              *websocket.Conn
+	tunnelURL         string
+	done              chan struct{}
+	mu                sync.Mutex
+	version           string
+	toolCount         int
+	onClientConnected ClientConnectedCallback
 }
 
 // NewClient creates a new tunnel client
-func NewClient(relayURL string, handler MCPHandler, version string) *Client {
+func NewClient(relayURL string, handler MCPHandler, version string, toolCount int) *Client {
 	return &Client{
-		relayURL: relayURL,
-		handler:  handler,
-		done:     make(chan struct{}),
-		version:  version,
+		relayURL:  relayURL,
+		handler:   handler,
+		done:      make(chan struct{}),
+		version:   version,
+		toolCount: toolCount,
 	}
+}
+
+// OnClientConnected sets the callback for when a client connects
+func (c *Client) OnClientConnected(cb ClientConnectedCallback) {
+	c.onClientConnected = cb
 }
 
 // TunnelMessage represents a message from/to the relay server
@@ -67,6 +78,7 @@ type TunnelMessage struct {
 	RequestID string          `json:"request_id,omitempty"`
 	Payload   json.RawMessage `json:"payload,omitempty"`
 	Error     string          `json:"error,omitempty"`
+	ClientIP  string          `json:"client_ip,omitempty"`
 }
 
 // Connect establishes a tunnel connection and returns the public URL
@@ -74,6 +86,7 @@ func (c *Client) Connect() (string, error) {
 	header := http.Header{}
 	header.Set("User-Agent", "gantz-cli/"+c.version)
 	header.Set("X-Gantz-Version", c.version)
+	header.Set("X-Gantz-Tool-Count", fmt.Sprintf("%d", c.toolCount))
 
 	conn, resp, err := websocket.DefaultDialer.Dial(c.relayURL+"/tunnel", header)
 	if err != nil {
@@ -127,6 +140,10 @@ func (c *Client) handleMessages() {
 			go c.handleRequest(msg)
 		case "ping":
 			c.sendPong()
+		case "client_connected":
+			if c.onClientConnected != nil && msg.ClientIP != "" {
+				c.onClientConnected(msg.ClientIP)
+			}
 		}
 	}
 }
