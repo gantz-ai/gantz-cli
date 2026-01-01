@@ -24,7 +24,7 @@ import (
 )
 
 var (
-	version   = "0.3.4"
+	version  = "0.4.0"
 	cfgFile   string
 	relayURL  string
 	enableAuth bool
@@ -214,7 +214,7 @@ func runServer(cmd *cobra.Command, args []string) error {
 	// Footer
 	versionStr := version
 	if !strings.HasPrefix(versionStr, "v") {
-		versionStr = "v" + versionStr
+		version  = "0.4.0" + versionStr
 	}
 	fmt.Printf("  %s  %s\n", dim(versionStr), dim("Hot-reload enabled"))
 	fmt.Printf("  %s\n\n", dim("Ctrl+C to stop"))
