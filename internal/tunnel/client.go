@@ -51,18 +51,25 @@ type Client struct {
 	mu                sync.Mutex
 	version           string
 	toolCount         int
+	authToken         string
 	onClientConnected ClientConnectedCallback
 }
 
 // NewClient creates a new tunnel client
-func NewClient(relayURL string, handler MCPHandler, version string, toolCount int) *Client {
+func NewClient(relayURL string, handler MCPHandler, version string, toolCount int, authToken string) *Client {
 	return &Client{
 		relayURL:  relayURL,
 		handler:   handler,
 		done:      make(chan struct{}),
 		version:   version,
 		toolCount: toolCount,
+		authToken: authToken,
 	}
+}
+
+// AuthToken returns the auth token for this tunnel
+func (c *Client) AuthToken() string {
+	return c.authToken
 }
 
 // OnClientConnected sets the callback for when a client connects
@@ -87,6 +94,9 @@ func (c *Client) Connect() (string, error) {
 	header.Set("User-Agent", "gantz-cli/"+c.version)
 	header.Set("X-Gantz-Version", c.version)
 	header.Set("X-Gantz-Tool-Count", fmt.Sprintf("%d", c.toolCount))
+	if c.authToken != "" {
+		header.Set("X-Gantz-Auth-Token", c.authToken)
+	}
 
 	conn, resp, err := websocket.DefaultDialer.Dial(c.relayURL+"/tunnel", header)
 	if err != nil {

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -22,9 +24,10 @@ import (
 )
 
 var (
-	version  = "0.3.4"
-	cfgFile  string
-	relayURL string
+	version   = "0.3.4"
+	cfgFile   string
+	relayURL  string
+	enableAuth bool
 )
 
 var (
@@ -123,6 +126,7 @@ var uninstallCmd = &cobra.Command{
 func init() {
 	runCmd.Flags().StringVarP(&cfgFile, "config", "c", "gantz.yaml", "config file path")
 	runCmd.Flags().StringVar(&relayURL, "relay", "wss://relay.gantz.run", "relay server URL")
+	runCmd.Flags().BoolVar(&enableAuth, "auth", false, "require auth token for requests")
 	validateCmd.Flags().StringVarP(&cfgFile, "config", "c", "gantz.yaml", "config file path")
 
 	rootCmd.AddCommand(runCmd)
@@ -157,10 +161,16 @@ func runServer(cmd *cobra.Command, args []string) error {
 	// Start config file watcher
 	go watchConfig(cfgFile, mcpServer)
 
+	// Generate auth token if enabled
+	var authToken string
+	if enableAuth {
+		authToken = generateAuthToken()
+	}
+
 	// Connect to relay
 	fmt.Printf("  %s %s\n", dim("●"), yellow("Connecting to relay..."))
 
-	tunnelClient := tunnel.NewClient(relayURL, mcpServer, version, len(cfg.Tools))
+	tunnelClient := tunnel.NewClient(relayURL, mcpServer, version, len(cfg.Tools), authToken)
 	tunnelClient.OnClientConnected(func(clientIP string) {
 		fmt.Printf("\n  %s %s %s\n", blue("●"), blue("Client connected"), dim(clientIP))
 	})
@@ -177,6 +187,13 @@ func runServer(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  %s\n", dim("Server URL"))
 	fmt.Printf("  %s\n", green(tunnelURL))
 	fmt.Println()
+
+	// Print auth token if enabled
+	if authToken != "" {
+		fmt.Printf("  %s\n", dim("Auth Token"))
+		fmt.Printf("  %s\n", yellow(authToken))
+		fmt.Println()
+	}
 
 	// Print sample client link (clickable in most terminals)
 	fmt.Printf("  %s\n", dim("Sample Client"))
@@ -511,4 +528,11 @@ func runUninstall(cmd *cobra.Command, args []string) error {
 	fmt.Printf("\n%s Gantz has been uninstalled\n", green("✓"))
 	fmt.Printf("\nTo reinstall: %s\n", cyan("curl -fsSL https://gantz.run/install.sh | sh"))
 	return nil
+}
+
+// generateAuthToken creates a random auth token
+func generateAuthToken() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return "gtz_" + hex.EncodeToString(b)
 }
