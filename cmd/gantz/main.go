@@ -51,6 +51,28 @@ and expose them via a secure tunnel URL for AI agents to connect.
 Example:
   gantz run              # Start server with gantz.yaml
   gantz run -c my.yaml   # Start with custom config`,
+	Run: func(cmd *cobra.Command, args []string) {
+		printBanner()
+		fmt.Printf("  %s %s\n", cyan("Gantz"), blue("Run"))
+		fmt.Printf("  %s\n\n", dim("Local MCP tunnel for AI agents"))
+
+		fmt.Printf("  %s\n", dim("Commands"))
+		fmt.Printf("  %s %-22s %s\n", dim("•"), cyan("gantz run"), dim("Start server with gantz.yaml"))
+		fmt.Printf("  %s %-22s %s\n", dim("•"), cyan("gantz init"), dim("Create sample gantz.yaml"))
+		fmt.Printf("  %s %-22s %s\n", dim("•"), cyan("gantz validate"), dim("Validate config file"))
+		fmt.Printf("  %s %-22s %s\n", dim("•"), cyan("gantz version"), dim("Show version info"))
+		fmt.Println()
+
+		fmt.Printf("  %s\n", dim("Sample Files"))
+		fmt.Printf("  %s %-22s %s\n", dim("•"), cyan("https://gantz.run/gantz.yaml"), dim("Sample config"))
+		fmt.Printf("  %s %-22s %s\n", dim("•"), cyan("https://gantz.run/client.py"), dim("Sample Python client"))
+		fmt.Println()
+
+		fmt.Printf("  %s\n", dim("Quick Start"))
+		fmt.Printf("  %s\n", dim("  curl -O https://gantz.run/gantz.yaml"))
+		fmt.Printf("  %s\n", dim("  gantz run"))
+		fmt.Println()
+	},
 }
 
 var runCmd = &cobra.Command{
@@ -145,6 +167,12 @@ func runServer(cmd *cobra.Command, args []string) error {
 	// Print server URL prominently
 	fmt.Printf("  %s\n", dim("Server URL"))
 	fmt.Printf("  %s\n", green(tunnelURL))
+	fmt.Println()
+
+	// Print sample files links (clickable in most terminals)
+	fmt.Printf("  %s\n", dim("Sample Files"))
+	fmt.Printf("  %s %s\n", dim("•"), cyan(tunnelURL+"/client.py"))
+	fmt.Printf("  %s %s\n", dim("•"), cyan("https://gantz.run/gantz.yaml"))
 	fmt.Println()
 
 	// Print loaded tools
