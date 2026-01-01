@@ -177,10 +177,9 @@ func runServer(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  %s\n", green(tunnelURL))
 	fmt.Println()
 
-	// Print sample files links (clickable in most terminals)
-	fmt.Printf("  %s\n", dim("Sample Files"))
-	fmt.Printf("  %s %s\n", dim("•"), cyan(tunnelURL+"/client.py"))
-	fmt.Printf("  %s %s\n", dim("•"), cyan("https://gantz.run/gantz.yaml"))
+	// Print sample client link (clickable in most terminals)
+	fmt.Printf("  %s\n", dim("Sample Client"))
+	fmt.Printf("  %s %s\n", dim("•"), cyan(tunnelURL+"/sample-client.py"))
 	fmt.Println()
 
 	// Print loaded tools
