@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/fatih/color"
@@ -194,7 +195,11 @@ func runServer(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	// Footer
-	fmt.Printf("  %s  %s\n", dim("v"+version), dim("Hot-reload enabled"))
+	versionStr := version
+	if !strings.HasPrefix(versionStr, "v") {
+		versionStr = "v" + versionStr
+	}
+	fmt.Printf("  %s  %s\n", dim(versionStr), dim("Hot-reload enabled"))
 	fmt.Printf("  %s\n\n", dim("Ctrl+C to stop"))
 
 	return tunnelClient.Wait()
